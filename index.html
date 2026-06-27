@@ -284,7 +284,7 @@
         const CRANE_DROP_Z = 4.5;
         let craneX = CRANE_START_X;
         let craneZ = CRANE_START_Z;
-        let craneY = 4.0; // シャフトの初期高さ
+        let armDown = 0.6; // アームの下降量（初期：0.6、最大下降限界：5.8程度）
         let clawAngle = 0.4; // 爪の開き具合ラジアン
 
         // 物理計算用オブジェクトリスト
@@ -1101,7 +1101,7 @@
                 startMotorSound();
 
                 let state = 'descending'; 
-                let dropLimit = 0.5; 
+                let maxArmDown = 5.8; // 景品がない場合の最大下降限界量
                 
                 let nearestP = null;
                 let minDist = 999;
@@ -1116,13 +1116,16 @@
                 });
 
                 if (nearestP) {
-                    dropLimit = Math.max(0.3, nearestP.pos.y - 0.2);
+                    // 近くに対象のぬいぐるみがある場合は、高さを感知してアームが適切な位置で掴むように調整
+                    maxArmDown = Math.max(0.3, (7.5 - nearestP.pos.y) - 0.2);
+                    // 絶対的な限界値を越えないようにガード
+                    if (maxArmDown > 5.8) maxArmDown = 5.8;
                 }
 
                 let actionInterval = setInterval(() => {
                     if (state === 'descending') {
-                        if (craneY > dropLimit) {
-                            craneY -= 0.1;
+                        if (armDown < maxArmDown) {
+                            armDown += 0.12;
                         } else {
                             state = 'grab';
                             stopMotorSound();
@@ -1143,10 +1146,10 @@
                         }
                     } 
                     else if (state === 'ascending') {
-                        if (craneY < 4.0) {
-                            craneY += 0.1;
+                        if (armDown > 0.6) {
+                            armDown -= 0.15; // スムーズに引き上げる
                         } else {
-                            craneY = 4.0;
+                            armDown = 0.6;
                             state = 'returning';
                             setStatus("もどり中...", "落とし口まで運びます");
                         }
@@ -1189,6 +1192,7 @@
                             currentDepth = 0;
                             craneX = CRANE_START_X;
                             craneZ = CRANE_START_Z;
+                            armDown = 0.6; // アームの下降量を初期位置に戻す
                             updateDepthUI();
                             updateButtonsUI();
                             setStatus("1. まえ ボタンを押してね", "狙いを定めて次の挑戦！");
@@ -1201,12 +1205,17 @@
         function update3DArmPosition() {
             if (!craneGroup || !shaftMesh || !clawHub) return;
 
+            // キャリア（横移動する台）の位置更新
             craneGroup.position.set(craneX, 7.5, craneZ);
-            const scaleFactor = (4.0 - craneY) * 1.5;
-            shaftMesh.scale.y = Math.max(0.1, scaleFactor);
-            clawHub.position.y = -scaleFactor * 6.0 - 0.6;
+            
+            // アームハブ（爪の土台）のローカル高さを下降量 armDown に直結
+            clawHub.position.y = -armDown;
+            
+            // シャフト（アームの芯の棒）の長さを下降量 armDown に正確に連動
+            shaftMesh.scale.y = Math.max(0.1, armDown / 6.0);
 
             if (grabbedPrize) {
+                // クローの中央底に近い世界座標を計算してぬいぐるみを追従させる
                 const grabPos = new THREE.Vector3(0, -1.2, 0);
                 clawHub.localToWorld(grabPos);
                 grabbedPrize.pos.copy(grabPos);
