@@ -1308,6 +1308,12 @@
             setStatus("景品を補充したよ！", "いっぱい並べ直しました！");
         }
 
+        // ステータステキストの更新
+        function setStatus(main, sub) {
+            document.getElementById('status-text').innerText = main;
+            document.getElementById('sub-status-text').innerText = sub;
+        }
+
         // --- UIの更新関連 ---
         function updateDepthUI() {
             const container = document.getElementById('depth-indicators');
